@@ -135,22 +135,58 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
 
     /** 提示框背景. */
     var hintRectBg = builder.hintRectBg
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示框圆角. */
     var hintRectRadius = builder.hintRectRadius
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示文字大小. */
     var hintTextSize = builder.hintTextSize
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示文字颜色. */
     var hintTextColor = builder.hintTextColor
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示文字格式化. */
     var hintTextFormat: (T) -> String = builder.hintTextFormat
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示框内间距. */
     var hintRectPadding = builder.hintRectPadding
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示框距离数据点的间距. */
     var hintRectTopDataSpace = builder.hintRectTopDataSpace
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示点圆的半径. */
     var hintPointRadius = builder.hintPointRadius
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
     /** 提示点圆的颜色. */
     var hintPointColor = builder.hintPointColor
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
 
     /** 平滑缩放的动画持续时间. */
     var smoothScaleOrZoomDuration = builder.smoothScaleOrZoomDuration
@@ -162,6 +198,10 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     var onMarkClicked: ((T) -> Unit)? = builder.onMarkClicked
     /** 标记图标. */
     var markIcon: Bitmap? = builder.markIcon
+        set(value) {
+            field = value
+            curveView.refresh()
+        }
 
     /** 数据点长按. */
     var onDataLongPressed: ((T) -> Unit)? = builder.onDataLongPressed
