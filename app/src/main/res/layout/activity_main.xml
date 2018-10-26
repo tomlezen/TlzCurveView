@@ -16,22 +16,55 @@
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
+    <Button
+        android:id="@+id/btn_start"
+        style="@style/Widget.AppCompat.Button.Colored"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="开始"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@+id/btn_stop"
+        app:layout_constraintTop_toBottomOf="@+id/curve_view"/>
+
+    <Button
+        android:id="@+id/btn_stop"
+        style="@style/Widget.AppCompat.Button.Colored"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="停止"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_start"
+        app:layout_constraintLeft_toRightOf="@+id/btn_start"
+        app:layout_constraintRight_toLeftOf="@+id/btn_null"
+        app:layout_constraintTop_toTopOf="@+id/btn_start"/>
+
+    <Button
+        android:id="@+id/btn_null"
+        style="@style/Widget.AppCompat.Button.Colored"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="NULL"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_start"
+        app:layout_constraintLeft_toRightOf="@+id/btn_stop"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/btn_start"/>
+
     <com.tlz.curveview.TlzCurveView
         android:id="@+id/curve_view_idle"
         android:layout_width="match_parent"
         android:layout_height="200dp"
+        android:layout_marginTop="10dp"
         android:background="#cccccc"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/curve_view"/>
+        app:layout_constraintTop_toBottomOf="@+id/btn_start"/>
 
     <Button
         android:id="@+id/btn_scale"
         style="@style/Widget.AppCompat.Button.Colored"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="10dp"
         android:text="放大"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toLeftOf="@+id/btn_zoom"
@@ -45,6 +78,17 @@
         android:text="缩小"
         app:layout_constraintBottom_toBottomOf="@+id/btn_scale"
         app:layout_constraintLeft_toRightOf="@+id/btn_scale"
+        app:layout_constraintRight_toLeftOf="@+id/btn_change"
+        app:layout_constraintTop_toTopOf="@+id/btn_scale"/>
+
+    <Button
+        android:id="@+id/btn_change"
+        style="@style/Widget.AppCompat.Button.Colored"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="更改数据"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_scale"
+        app:layout_constraintLeft_toRightOf="@+id/btn_zoom"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="@+id/btn_scale"/>
 

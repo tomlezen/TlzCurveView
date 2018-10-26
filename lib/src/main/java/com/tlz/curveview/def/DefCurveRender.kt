@@ -4,6 +4,7 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
@@ -41,7 +42,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     private val hintTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
 
     /** 是否是静态模式,静态模式不可添加数据. */
-    val isIdleMode: Boolean = builder.isIdleMode
+    private val isIdleMode: Boolean = builder.isIdleMode
 
     /** 左边距. */
     var paddingLeft = builder.paddingLeft
@@ -159,6 +160,9 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
 
     /** 标记点击. */
     var onMarkClicked: ((T) -> Unit)? = builder.onMarkClicked
+    /** 标记图标. */
+    var markIcon: Bitmap? = builder.markIcon
+
     /** 数据点长按. */
     var onDataLongPressed: ((T) -> Unit)? = builder.onDataLongPressed
 
@@ -207,11 +211,24 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     private var motionStartY = 0f
     /** 手势触摸地方的数据. */
     private var motionData: DataWrapper<T>? = null
+    /** 点击的数据 */
+    private var motionClickedData: DataWrapper<T>? = null
     /** 是否显示提示框. */
     private var isShownHintRect = false
 
     /** 是否正在移动. */
     private var isMoving = false
+
+    /**
+     * 计算点击事件.
+     * @param event MotionEvent
+     */
+    private fun calClickEvent(event: MotionEvent) {
+        // 判断是否还是原来的点 是就触发点击操作 并显示提示框
+        motionClickedData = calDataByMotionEvent(event)
+        isShownHintRect = motionData != null && motionClickedData == motionData
+        curveView.refresh()
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!isScrolling) {
@@ -258,9 +275,18 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
                         if (System.currentTimeMillis() - motionDownTime > 1000) {
                             motionData?.let { onDataLongPressed?.invoke(it.data) }
                         } else {
-                            // 判断是否还是原来的点 是就触发点击操作 并显示提示框
-                            isShownHintRect = calDataByMotionEvent(event) == motionData
-                            curveView.refresh()
+                            calClickEvent(event)
+                        }
+                    } else if (!isMoving) {
+                        // 计算是否有标记被点击
+                        kotlin.run Break@{
+                            drawnData.forEach { d ->
+                                if (d.markRect.contains(event.x, event.y)) {
+                                    onMarkClicked?.invoke(d.data)
+                                    return@Break
+                                }
+                            }
+                            calClickEvent(event)
                         }
                     }
                     curveView.parent?.requestDisallowInterceptTouchEvent(false)
@@ -294,6 +320,12 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
 
         // 绘制曲线
         drawCurveLine(cvs, drawnWidth, drawnHeight, startX, startY)
+
+        // 绘制标记.
+        drawMark(cvs)
+
+        // 绘制提示框.
+        drawHintRect(cvs)
     }
 
     /**
@@ -492,72 +524,84 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
             curvePathPaint.color = curveColor
             curvePathPaint.strokeWidth = curveThickness
             cvs.drawPath(curvePath, curvePathPaint)
-
-            motionData?.let { drawHintRect(cvs, it) }
         }
     }
 
     /**
      * 绘制提示框.
      * @param cvs Canvas
-     * @param data DataWrapper<T>
      */
-    private fun drawHintRect(cvs: Canvas, data: DataWrapper<T>) {
-        if (!isShownHintRect || !data.isShown || data.x > drawnRect.right) return
-        val hintText = hintTextFormat.invoke(data.data)
-        if (hintText.isEmpty()) return
+    private fun drawHintRect(cvs: Canvas) {
+        motionClickedData?.let { data ->
+            if (!isShownHintRect || !data.isShown || data.x > drawnRect.right) return
+            val hintText = hintTextFormat.invoke(data.data)
+            if (hintText.isEmpty()) return
 
-        hintTextPaint.textSize = hintTextSize
-        hintTextPaint.color = hintTextColor
-        // 分割换行符 计算最大宽度
-        val hints = hintText.split("\n")
-        var width = 0f
-        hints.forEach {
-            val w = hintTextPaint.measureText(it)
-            if (w > width) {
-                width = w
+            hintTextPaint.textSize = hintTextSize
+            hintTextPaint.color = hintTextColor
+            // 分割换行符 计算最大宽度
+            val hints = hintText.split("\n")
+            var width = 0f
+            hints.forEach {
+                val w = hintTextPaint.measureText(it)
+                if (w > width) {
+                    width = w
+                }
             }
-        }
-        val staLayout = StaticLayout(
-                hintText,
-                hintTextPaint,
-                (width + 2).toInt(),
-                Layout.Alignment.ALIGN_NORMAL,
-                1f,
-                0f,
-                true
-        )
-        val rectHeight = staLayout.height + hintRectPadding * 2
-        val rectWidth = staLayout.width + hintRectPadding * 2
+            val staLayout = StaticLayout(
+                    hintText,
+                    hintTextPaint,
+                    (width + 2).toInt(),
+                    Layout.Alignment.ALIGN_NORMAL,
+                    1f,
+                    0f,
+                    true
+            )
+            val rectHeight = staLayout.height + hintRectPadding * 2
+            val rectWidth = staLayout.width + hintRectPadding * 2
 
-        var top = data.y - rectHeight - hintRectTopDataSpace
-        if (top < drawnRect.top) {
-            top = data.y + hintRectTopDataSpace
-        }
-        val bot = top + rectHeight
-        var left = data.x - rectWidth / 2
-        if (left < drawnRect.left) {
-            left = drawnRect.left + 2f
-        }
-        var right = left + rectWidth
-        if (right > drawnRect.right) {
-            right = drawnRect.right - 2f
-            left = right - rectWidth
-        }
+            var top = data.y - rectHeight - hintRectTopDataSpace
+            if (top < drawnRect.top) {
+                top = data.y + hintRectTopDataSpace
+            }
+            val bot = top + rectHeight
+            var left = data.x - rectWidth / 2
+            if (left < drawnRect.left) {
+                left = drawnRect.left + 2f
+            }
+            var right = left + rectWidth
+            if (right > drawnRect.right) {
+                right = drawnRect.right - 2f
+                left = right - rectWidth
+            }
 
-        // 绘制提示框
-        hintPaint.color = hintRectBg
-        cvs.drawRoundRect(RectF(left, top, right, bot), hintRectRadius, hintRectRadius, hintPaint)
+            // 绘制提示框
+            hintPaint.color = hintRectBg
+            cvs.drawRoundRect(RectF(left, top, right, bot), hintRectRadius, hintRectRadius, hintPaint)
 
-        // 绘制提示语
-        cvs.save()
-        cvs.translate(left + hintRectPadding, top + hintRectPadding)
-        staLayout.draw(cvs)
-        cvs.restore()
+            // 绘制提示语
+            cvs.save()
+            cvs.translate(left + hintRectPadding, top + hintRectPadding)
+            staLayout.draw(cvs)
+            cvs.restore()
 
-        // 绘制提示点.
-        hintPaint.color = hintPointColor
-        cvs.drawCircle(data.x, data.y, hintPointRadius, hintPaint)
+            // 绘制提示点.
+            hintPaint.color = hintPointColor
+            cvs.drawCircle(data.x, data.y, hintPointRadius, hintPaint)
+        }
+    }
+
+    /**
+     * 绘制标记.
+     * @param cvs Canvas
+     */
+    private fun drawMark(cvs: Canvas) {
+        markIcon?.let {
+            drawnData.filter { d -> d.data.mark.isEmpty() }.forEach { data ->
+                data.markRect.set(data.x - it.width / 2, data.y - it.height, data.x + it.width / 2, data.y)
+                cvs.drawBitmap(it, null, data.markRect, hintPaint)
+            }
+        } ?: return
     }
 
     /**
@@ -565,6 +609,9 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
      * @param data List<T>
      */
     internal fun setData(data: List<T>) {
+        this.motionData = null
+        this.motionClickedData = null
+        this.isShownHintRect = false
         this.scaleAnimator?.cancel()
         this.moveAnimator?.cancel()
         this.curScale = 1
@@ -584,6 +631,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
      */
     internal fun addData(data: T) {
         if (isIdleMode) return
+        start()
         waitDrawnDataQueue.offer(data)
         checkMinWaitQueue()
     }
@@ -611,6 +659,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     private fun startAnimator() {
         if (animator?.duration != smoothMoveDuration) {
             stopAnimator()
+            animatorProgress = 0f
             animator = ObjectAnimator.ofFloat(0f, 1f).apply {
                 duration = smoothMoveDuration
                 repeatCount = ValueAnimator.INFINITE
@@ -642,7 +691,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
      */
     private fun stopAnimator() {
         animator?.cancel()
-        animatorProgress = 0f
+        animator = null
     }
 
     /**
@@ -678,6 +727,41 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
         }?.apply {
             println("id是: $id")
         }
+    }
+
+    /** 是否停止. */
+    private var isStop = true
+
+    /**
+     * 停止.
+     */
+    fun stop() {
+        if (isIdleMode) return
+        isStop = true
+    }
+
+    /**
+     * 开始.
+     */
+    fun start() {
+        if (!isStop) return
+        reset()
+        isStop = false
+        curveView.refresh()
+    }
+
+    /**
+     * 重置.
+     */
+    private fun reset() {
+        isStop = true
+        waitDrawnDataQueue.clear()
+        stopAnimator()
+        animatorProgress = 0f
+        isShownHintRect = false
+        motionData = null
+        motionClickedData = null
+        drawnData.clear()
     }
 
     /** 当前放大倍数. */
@@ -800,9 +884,13 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
         return value
     }
 
-    private class DataWrapper<T>(val data: T, var x: Float = -1f, var y: Float = -1f, var isShown: Boolean = false) {
-
+    private class DataWrapper<T>(
+            val data: T,
+            var x: Float = -1f,
+            var y: Float = -1f,
+            var isShown: Boolean = false) {
         val id = System.currentTimeMillis()
+        val markRect = RectF()
 
         override fun equals(other: Any?): Boolean = id == (other as? DataWrapper<T>)?.id
 

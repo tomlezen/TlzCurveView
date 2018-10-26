@@ -1,6 +1,7 @@
 package com.tlz.curveview.def
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.TypedValue
@@ -68,7 +69,7 @@ class YaxisBuilder internal constructor(ctx: Context) {
 
 class CurveRenderBuilder<T> internal constructor(ctx: Context) {
 
-    /** 是否是静态模式. */
+    /** 是否是静态模式 静态模式不可追加数据. */
     var isIdleMode: Boolean = false
 
     /** 左边距. */
@@ -130,6 +131,9 @@ class CurveRenderBuilder<T> internal constructor(ctx: Context) {
 
     /** 标记点击. */
     var onMarkClicked: ((T) -> Unit)? = null
+    /** 标记图标. */
+    var markIcon: Bitmap? = null
+
     /** 数据点长按回调, 只有动态模式才会回调. */
     var onDataLongPressed: ((T) -> Unit)? = null
 }
@@ -149,7 +153,6 @@ fun <T : DefData> TlzCurveView.setupByDef(setup: DefCurveView<T>.() -> Unit) {
 /**
  * Y轴偏移.
  * @receiver Paint
- * @param paint TextPaint
  * @param gravity Int
  * @return Int
  */
