@@ -82,13 +82,14 @@ class DefYaxis internal constructor(builder: YaxisBuilder) : Yaxis() {
             val drawnHeight = bottom - top - paddingTop - paddingBot
             val itemCount = items.size
             val eachHeight = drawnHeight.toFloat() / (itemCount - 1)
+            val startY = bottom - paddingBot
 
             val drawnR = right - paddingRight.toFloat()
             textPaint.color = textColor
             textPaint.textAlign = Paint.Align.RIGHT
             items.forEachIndexed { index, item ->
                 // 绘制文字
-                cvs.drawText(item.toString(), drawnR, bottom - eachHeight * index - textOffsetY, textPaint)
+                cvs.drawText(item.toString(), drawnR, startY - eachHeight * index + textOffsetY, textPaint)
             }
         }
     }
@@ -106,7 +107,7 @@ class DefYaxis internal constructor(builder: YaxisBuilder) : Yaxis() {
                 width = wid
             }
         }
-        textOffsetY = textPaint.textOffsetY()
+        textOffsetY = textPaint.textOffsetY() + 2
         return (paddingLeft + paddingRight + width).toInt()
     }
 }
