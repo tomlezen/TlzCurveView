@@ -188,6 +188,9 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
       curveView.refresh()
     }
 
+  /** Y轴点击时间半径. */
+  var yClickEventRadius = builder.yClickEventRadius
+
   /** 平滑缩放的动画持续时间. */
   var smoothScaleOrZoomDuration = builder.smoothScaleOrZoomDuration
 
@@ -226,7 +229,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     }
 
   /** 每个数据点的有效宽度. */
-  private var eachDataWidth = 0
+  private var eachDataWidth = 0f
 
   /** 当前是否处于滑动中. */
   private var isScrolling = false
@@ -419,11 +422,11 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
   private fun calEachDataWidth(drawnWidth: Int) {
     eachDataWidth = if (isIdleMode) {
       val dataSize = drawnData.count()
-      val curEachDataWidth = drawnWidth / checkMin(1, dataSize / curScale - 1)
-      val nextEachDataWidth = drawnWidth / checkMin(1, dataSize / nextScale - 1)
-      (curEachDataWidth + (nextEachDataWidth - curEachDataWidth) * scaleAnimateProgress).toInt()
+      val curEachDataWidth = drawnWidth.toFloat() / checkMin(1, dataSize / curScale - 1)
+      val nextEachDataWidth = drawnWidth.toFloat() / checkMin(1, dataSize / nextScale - 1)
+      curEachDataWidth + (nextEachDataWidth - curEachDataWidth) * scaleAnimateProgress
     } else {
-      drawnWidth / (maxShownDataPoint - 1)
+      drawnWidth.toFloat() / (maxShownDataPoint - 1)
     }
   }
 
@@ -450,7 +453,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
         // 判断中心点的坐标是否计算.
         val centerData = drawnData[centerDataPosition].apply {
           if (x == -1f) {
-            x = startX + eachDataWidth.toFloat() * centerDataPosition
+            x = startX + eachDataWidth * centerDataPosition
           }
         }
         drawnData.forEachIndexed { index, dataWrapper ->
@@ -458,7 +461,12 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
           dataWrapper.y = startY - dataWrapper.data.yScale * drawnHeight
         }
       } else {
-        val offsetX = eachDataWidth * animatorProgress
+        val firstShown = drawnData.first().isShown
+        val offsetX = when{
+          !firstShown && animatorProgress >= 1f -> 0f
+          animator == null -> eachDataWidth.toFloat()
+          else ->  eachDataWidth * animatorProgress
+        }
         drawnData.forEachIndexed { index, dataWrapper ->
           if (index == 0) {
             dataWrapper.x = startX.toFloat() - eachDataWidth + offsetX
@@ -637,7 +645,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
    */
   private fun drawMark(cvs: Canvas) {
     markIcon?.let {
-      drawnData.filter { d -> d.data.mark.isEmpty() }.forEach { data ->
+      drawnData.filter { d -> d.data.mark.isNotEmpty() }.forEach { data ->
         data.markRect.set(data.x - it.width / 2, data.y - it.height, data.x + it.width / 2, data.y)
         cvs.drawBitmap(it, null, data.markRect, hintPaint)
       }
@@ -732,6 +740,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
   private fun stopAnimator() {
     animator?.cancel()
     animator = null
+    curveView.refresh()
   }
 
   /**
@@ -742,7 +751,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     if (!isScrolling) {
       return
     }
-    (velocityTracker ?: VelocityTracker.obtain().also { velocityTracker = it }).addMovement(event)
+//    (velocityTracker ?: VelocityTracker.obtain().also { velocityTracker = it }).addMovement(event)
   }
 
   /**
@@ -762,7 +771,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     val y = event.y
     val range = eachDataWidth / 2
     return drawnData.find {
-      it.isShown && it.x >= x - range && it.x <= x + range && it.y >= y - range && it.y <= y + range
+      it.isShown && it.x >= x - range && it.x <= x + range && it.y >= y - yClickEventRadius && it.y <= y + yClickEventRadius
     }?.apply {
       println("id是: $id")
     }
@@ -788,6 +797,14 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     isStop = false
     curveView.refresh()
   }
+
+    /**
+     * 关闭提示.
+     */
+    fun closeHint(){
+        isShownHintRect = false
+        curveView.refresh()
+    }
 
   /**
    * 重置.

@@ -26,10 +26,10 @@ class MainActivity : AppCompatActivity() {
         // 初始化曲线为默认样式 动态添加模式
         curve_view.setupByDef<Data> {
             yaxis {
-                paddingTop = 10
-                paddingBot = 10
-                paddingLeft = 10
-                paddingRight = 10
+//                paddingTop = 10
+//                paddingBot = 10
+//                paddingLeft = 10
+//                paddingRight = 10
 
                 items = Array(6) {
                     it * 20
@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             curveRender {
-                maxShownDataPoint = 20
+                maxShownDataPoint = 40
 
                 baseline = Data(60f)
 

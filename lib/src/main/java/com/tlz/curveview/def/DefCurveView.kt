@@ -136,6 +136,9 @@ class CurveRenderBuilder<T> internal constructor(ctx: Context) {
 
     /** 数据点长按回调, 只有动态模式才会回调. */
     var onDataLongPressed: ((T) -> Unit)? = null
+
+    /** Y轴点击时间半径. */
+    var yClickEventRadius = ctx.dp2px(10f)
 }
 
 /**
