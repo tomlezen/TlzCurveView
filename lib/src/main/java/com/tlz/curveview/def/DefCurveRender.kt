@@ -4,22 +4,16 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.DashPathEffect
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.Rect
-import android.graphics.RectF
+import android.graphics.*
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.view.GestureDetector
 import android.view.MotionEvent
-import android.view.VelocityTracker
 import android.view.animation.LinearInterpolator
 import com.tlz.curveview.CurveRender
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.math.abs
+
 
 /**
  * 默认曲线渲染器.
@@ -231,10 +225,53 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
   /** 每个数据点的有效宽度. */
   private var eachDataWidth = 0f
 
-  /** 当前是否处于滑动中. */
-  private var isScrolling = false
-  /** 速度跟踪器. */
-  private var velocityTracker: VelocityTracker? = null
+  /** 缩放手势解码器. */
+  private val scaleGestureDetector by lazy {
+    CustomScaleGestureDetector(curveView.context, onGestureListener)
+  }
+
+  /** 手势监听事件. */
+  private val onGestureListener by lazy {
+    object : CustomScaleGestureDetector.OnGestureListener {
+      override fun onDrag(dx: Float, dy: Float) {
+        this@DefCurveRender.onDrag(dx, dy)
+      }
+
+      override fun onFling(startX: Float, startY: Float, velocityX: Float, velocityY: Float) {
+
+      }
+
+      override fun onScale(scaleFactor: Float, focusX: Float, focusY: Float) {
+        if (scaleFactor == 1f) return
+        if (scaleFactor > 1f) {
+          scale()
+        } else {
+          zoom()
+        }
+      }
+    }
+  }
+
+  /** 普通手势解析器. */
+  private val gestureDetector by lazy {
+    GestureDetector(curveView.context, object : GestureDetector.SimpleOnGestureListener() {
+      override fun onLongPress(e: MotionEvent?) {
+        onLongPress()
+      }
+
+      override fun onSingleTapConfirmed(e: MotionEvent?): Boolean {
+        e?.let { this@DefCurveRender.onSingleTapConfirmed(it) }
+        return true
+      }
+
+      override fun onSingleTapUp(e: MotionEvent?): Boolean {
+        e?.let { this@DefCurveRender.onSingleTapUp(it) }
+        return false
+      }
+    })
+  }
+
+  private var blockParentIntercept = false
 
   init {
     baselinePaint.strokeCap = Paint.Cap.ROUND
@@ -246,12 +283,6 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     curvePathPaint.strokeJoin = Paint.Join.ROUND
   }
 
-  /** Touch down时间. */
-  private var motionDownTime = 0L
-  /** Touch down X坐标. */
-  private var motionStartX = 0f
-  /** Touch down Y坐标. */
-  private var motionStartY = 0f
   /** 手势触摸地方的数据. */
   private var motionData: DataWrapper<T>? = null
   /** 点击的数据 */
@@ -273,77 +304,92 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     curveView.refresh()
   }
 
-  override fun onTouchEvent(event: MotionEvent): Boolean {
-    if (!isScrolling) {
-      curveView.parent?.requestDisallowInterceptTouchEvent(true)
-      obtainVelocityTracker(event)
-      when (event.action) {
-        MotionEvent.ACTION_DOWN -> {
-          motionDownTime = System.currentTimeMillis()
-          motionStartX = event.x
-          motionStartY = event.y
-          motionData = calDataByMotionEvent(event)
-        }
-        MotionEvent.ACTION_MOVE -> {
-          if (isIdleMode && scaleAnimator?.isRunning != true && moveAnimator?.isRunning != true) {
-            var dis = event.x - motionStartX
-            if (abs(dis) >= touchMoveThreshold) {
-              isMoving = true
-              // 判断左边界
-              drawnData.first().apply {
-                if (x + dis > drawnRect.left) {
-                  dis = drawnRect.left - x
-                }
-              }
-              // 判断右边边界
-              drawnData.last().apply {
-                if (x + dis < drawnRect.right) {
-                  dis = drawnRect.right - x
-                }
-              }
-              drawnData.forEach {
-                it.x += dis
-              }
+  /**
+   * 拖动事件处理.
+   * @param dx Float
+   * @param dy Float
+   */
+  private fun onDrag(dx: Float, dy: Float) {
+    if (scaleGestureDetector.isScaling) return
 
-              motionStartX = event.x
-              motionStartY = event.y
-              curveView.refresh()
-              calCenterDataPosition()
-            }
-          }
-        }
-        MotionEvent.ACTION_UP -> {
-          if (!isIdleMode) {
-            // 判断时间是否是长按
-            if (System.currentTimeMillis() - motionDownTime > 1000) {
-              motionData?.let { onDataLongPressed?.invoke(it.data) }
-            } else {
-              calClickEvent(event)
-            }
-          } else if (!isMoving) {
-            // 计算是否有标记被点击
-            kotlin.run Break@{
-              drawnData.forEach { d ->
-                if (d.markRect.contains(event.x, event.y)) {
-                  onMarkClicked?.invoke(d.data)
-                  return@Break
-                }
-              }
-              calClickEvent(event)
-            }
-          }
-          curveView.parent?.requestDisallowInterceptTouchEvent(false)
-          recycleVelocityTracker()
-          isMoving = false
-        }
-        MotionEvent.ACTION_CANCEL -> {
-          recycleVelocityTracker()
-          curveView.parent?.requestDisallowInterceptTouchEvent(false)
-          isMoving = false
+    if (isIdleMode && scaleAnimator?.isRunning != true && moveAnimator?.isRunning != true) {
+      var dis = dx
+      // 判断左边界
+      drawnData.first().apply {
+        if (x + dis > drawnRect.left) {
+          dis = drawnRect.left - x
         }
       }
+      // 判断右边边界
+      drawnData.last().apply {
+        if (x + dis < drawnRect.right) {
+          dis = drawnRect.right - x
+        }
+      }
+      drawnData.forEach {
+        it.x += dis
+      }
+
+      curveView.refresh()
+      calCenterDataPosition()
+
+      curveView.parent?.requestDisallowInterceptTouchEvent(blockParentIntercept)
     }
-    return true
+  }
+
+  /**
+   * 长按事件.
+   */
+  private fun onLongPress() {
+    motionData?.let { onDataLongPressed?.invoke(it.data) }
+  }
+
+  /**
+   * 按下.
+   * @param e MotionEvent
+   */
+  private fun onSingleTapUp(e: MotionEvent) {
+    motionData = calDataByMotionEvent(e)
+  }
+
+  /**
+   * 单击事件.
+   * @param e MotionEvent
+   */
+  private fun onSingleTapConfirmed(e: MotionEvent) {
+    kotlin.run Break@{
+      drawnData.forEach { d ->
+        if (d.markRect.contains(e.x, e.y)) {
+          onMarkClicked?.invoke(d.data)
+          return@Break
+        }
+      }
+      calClickEvent(e)
+    }
+  }
+
+  override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (isMoving) return false
+    var handled: Boolean
+    when (event.action) {
+      MotionEvent.ACTION_DOWN -> {
+        curveView.parent?.requestDisallowInterceptTouchEvent(true)
+      }
+      MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
+        isMoving = false
+        curveView.parent?.requestDisallowInterceptTouchEvent(false)
+      }
+    }
+    val wasScaling = scaleGestureDetector.isScaling
+    val wasDragging = scaleGestureDetector.isDragging
+    handled = scaleGestureDetector.onTouchEvent(event)
+    val didntScale = !wasScaling && !scaleGestureDetector.isScaling
+    val didntDrag = !wasDragging && !scaleGestureDetector.isDragging
+    blockParentIntercept = didntScale && didntDrag
+    if (gestureDetector.onTouchEvent(event)) {
+      handled = true
+    }
+    return handled
   }
 
   override fun onDraw(cvs: Canvas, left: Int, top: Int, right: Int, bottom: Int) {
@@ -449,7 +495,6 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
       }
     } else {
       if (isIdleMode) {
-        if (isMoving) return
         // 判断中心点的坐标是否计算.
         val centerData = drawnData[centerDataPosition].apply {
           if (x == -1f) {
@@ -741,24 +786,6 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     animator?.cancel()
     animator = null
     curveView.refresh()
-  }
-
-  /**
-   * 获取速度跟踪器.
-   * @param event MotionEvent
-   */
-  private fun obtainVelocityTracker(event: MotionEvent) {
-    if (!isScrolling) {
-      return
-    }
-//    (velocityTracker ?: VelocityTracker.obtain().also { velocityTracker = it }).addMovement(event)
-  }
-
-  /**
-   * 回收速度跟踪器.
-   */
-  private fun recycleVelocityTracker() {
-    velocityTracker?.recycle()
   }
 
   /**

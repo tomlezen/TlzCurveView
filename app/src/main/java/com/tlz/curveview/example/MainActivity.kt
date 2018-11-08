@@ -126,7 +126,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    class Data(val value: Float, val time: Long = System.currentTimeMillis(), private val alert: String = "") : DefData {
+    class Data(val value: Float, val time: Long = System.currentTimeMillis(), private val alert: String = "131") : DefData {
 
         override val yScale: Float
             get() = value / 100
