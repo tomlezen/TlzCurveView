@@ -119,7 +119,7 @@ class CurveRenderBuilder<T> internal constructor(ctx: Context) {
     /** 提示框距离数据点的间距. */
     var hintRectTopDataSpace = ctx.dp2px(10)
     /** 提示点圆的半径. */
-    var hintPointRadius = ctx.dp2px(6f)
+    var hintPointRadius = ctx.dp2px(4f)
     /** 提示点圆的颜色. */
     var hintPointColor = Color.GREEN
 
@@ -129,6 +129,8 @@ class CurveRenderBuilder<T> internal constructor(ctx: Context) {
     /** 触摸滑动阈值. */
     var touchMoveThreshold = ctx.dp2px(8)
 
+    /** 是否显示标记. */
+    var showMark = true
     /** 标记点击. */
     var onMarkClicked: ((T) -> Unit)? = null
     /** 标记图标. */
