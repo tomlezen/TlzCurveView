@@ -7,9 +7,9 @@ package com.tlz.curveview.def
  */
 interface DefData {
 
-    /** 获取Y轴比例(值为0-1). */
-    val yScale: Float
+  /** 获取Y轴比例(值为0-1). */
+  val yScale: Float
 
-    /** 标记. */
-    val mark: String
+  /** 标记. */
+  val mark: String
 }

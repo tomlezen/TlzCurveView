@@ -9,22 +9,22 @@ import com.tlz.curveview.Dataset
  * Data: 2018/10/22.
  * Time: 14:24.
  */
-class DefDataset<T: DefData> internal constructor() : Dataset<T>() {
+class DefDataset<T : DefData> internal constructor() : Dataset<T>() {
 
-    override fun getDrawnData(): List<T> = listOf()
+  override fun getDrawnData(): List<T> = listOf()
 
-    override fun appendData(data: T) {
-        (this.curveView.curveRender<T>() as? DefCurveRender<T>)?.addData(data)
-    }
+  override fun appendData(data: T) {
+    (this.curveView.curveRender<T>() as? DefCurveRender<T>)?.addData(data)
+  }
 
-    override fun appendData(data: List<T>) {
+  override fun appendData(data: List<T>) {
 
-    }
+  }
 
-    override fun setData(vararg data: T) {
-    }
+  override fun setData(vararg data: T) {
+  }
 
-    override fun setData(data: List<T>) {
-        (this.curveView.curveRender<T>() as? DefCurveRender<T>)?.setData(data)
-    }
+  override fun setData(data: List<T>) {
+    (this.curveView.curveRender<T>() as? DefCurveRender<T>)?.setData(data)
+  }
 }

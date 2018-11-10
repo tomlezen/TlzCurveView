@@ -9,6 +9,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.view.GestureDetector
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.animation.LinearInterpolator
 import com.tlz.curveview.CurveRender
@@ -127,6 +128,12 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
       curveView.refresh()
     }
 
+  /** 提示框方向. */
+  var hintRectOrientation = builder.hintRectOrientation
+    set(value) {
+      field = value
+      curveView.refresh()
+    }
   /** 提示框背景. */
   var hintRectBg = builder.hintRectBg
     set(value) {
@@ -173,14 +180,15 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
   var hintPointRadius = builder.hintPointRadius
     set(value) {
       field = value
+      hintPaint.pathEffect = CornerPathEffect(hintPointRadius)
       curveView.refresh()
     }
   /** 提示点圆的颜色. */
-  var hintPointColor = builder.hintPointColor
-    set(value) {
-      field = value
-      curveView.refresh()
-    }
+//  var hintPointColor = builder.hintPointColor
+//    set(value) {
+//      field = value
+//      curveView.refresh()
+//    }
 
   /** Y轴点击时间半径. */
   var yClickEventRadius = builder.yClickEventRadius
@@ -189,12 +197,24 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
   var smoothScaleOrZoomDuration = builder.smoothScaleOrZoomDuration
 
   /** 触摸滑动阈值. */
-  var touchMoveThreshold = builder.touchMoveThreshold
+//  var touchMoveThreshold = builder.touchMoveThreshold
 
   /** 标记点击. */
   var onMarkClicked: ((T) -> Unit)? = builder.onMarkClicked
   /** 标记图标. */
-  var markIcon: Bitmap? = builder.markIcon
+  var markerIcon: Bitmap? = builder.markerIcon
+    set(value) {
+      field = value
+      curveView.refresh()
+    }
+  /** 标记数字文字大小. */
+  var markNumTextSize = builder.markNumTextSize
+    set(value) {
+      field = value
+      curveView.refresh()
+    }
+  /** 标记数字文字颜色. */
+  var markNumTextColor = builder.markNumTextColor
     set(value) {
       field = value
       curveView.refresh()
@@ -203,6 +223,10 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
   /** 数据点长按. */
   var onDataLongPressed: ((T) -> Unit)? = builder.onDataLongPressed
 
+  /** 获取已展示的标记数据. */
+  val getShownMarkData: List<T>
+    get() = drawnData.asSequence().filter { !it.markRect.isEmpty }.mapTo(mutableListOf()) { it.data }
+
   /** 等待绘制的数据队列. */
   private val waitDrawnDataQueue = ConcurrentLinkedQueue<T>()
   /** 绘制的数据 */
@@ -210,6 +234,9 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
 
   /** 曲线Path. */
   private val curvePath = Path()
+  /** 提示框区域Path. */
+  private val hintRectPath = Path()
+  private val hintRectRadiusRectF = RectF()
 
   /** 绘制区域. */
   private val drawnRect = Rect()
@@ -281,6 +308,9 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     curvePathPaint.style = Paint.Style.STROKE
     curvePathPaint.strokeCap = Paint.Cap.ROUND
     curvePathPaint.strokeJoin = Paint.Join.ROUND
+
+    hintPaint.strokeCap = Paint.Cap.ROUND
+    hintPaint.pathEffect = CornerPathEffect(hintPointRadius)
   }
 
   /** 手势触摸地方的数据. */
@@ -507,10 +537,10 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
         }
       } else {
         val firstShown = drawnData.first().isShown
-        val offsetX = when{
+        val offsetX = when {
           !firstShown && animatorProgress >= 1f -> 0f
-          animator == null -> eachDataWidth.toFloat()
-          else ->  eachDataWidth * animatorProgress
+          animator == null -> eachDataWidth
+          else -> eachDataWidth * animatorProgress
         }
         drawnData.forEachIndexed { index, dataWrapper ->
           if (index == 0) {
@@ -626,12 +656,13 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
    */
   private fun drawHintRect(cvs: Canvas) {
     motionClickedData?.let { data ->
-      if (!isShownHintRect || !data.isShown || data.x > drawnRect.right) return
+      if (!isShownHintRect || !data.isShown || data.x > drawnRect.right - hintRectTopDataSpace / 2 || data.x < drawnRect.left + hintRectTopDataSpace / 2) return
       val hintText = hintTextFormat.invoke(data.data)
       if (hintText.isEmpty()) return
 
       hintTextPaint.textSize = hintTextSize
       hintTextPaint.color = hintTextColor
+      hintTextPaint.textAlign = Paint.Align.LEFT
       // 分割换行符 计算最大宽度
       val hints = hintText.split("\n")
       var width = 0f
@@ -650,37 +681,104 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
           0f,
           true
       )
+
       val rectHeight = staLayout.height + hintRectPadding * 2
       val rectWidth = staLayout.width + hintRectPadding * 2
 
-      var top = data.y - rectHeight - hintRectTopDataSpace
-      if (top < drawnRect.top) {
-        top = data.y + hintRectTopDataSpace
-      }
-      val bot = top + rectHeight
-      var left = data.x - rectWidth / 2
-      if (left < drawnRect.left) {
-        left = drawnRect.left + 2f
-      }
-      var right = left + rectWidth
-      if (right > drawnRect.right) {
-        right = drawnRect.right - 2f
-        left = right - rectWidth
-      }
-
       // 绘制提示框
+      hintRectRadiusRectF.set(0f, 0f, hintRectRadius * 2, hintRectRadius * 2)
       hintPaint.color = hintRectBg
-      cvs.drawRoundRect(RectF(left, top, right, bot), hintRectRadius, hintRectRadius, hintPaint)
+      hintRectPath.reset()
+
+      var left: Float
+      var right: Float
+      var top: Float
+      var bot: Float
+
+      if (hintRectOrientation == DefCurueHintOrientation.v) {
+        /** 是否绘制在点的上方. */
+        var isTop = true
+        top = data.y - rectHeight - hintRectTopDataSpace
+        if (top < drawnRect.top || (markerIcon != null && data.data.mark.isNotEmpty())) {
+          top = data.y + hintRectTopDataSpace
+          isTop = false
+        }
+        bot = top + rectHeight
+        // 检查底部是否足够如果不足够还是绘制在上边
+        if (bot > drawnRect.bottom) {
+          top = data.y - rectHeight - hintRectTopDataSpace
+          isTop = true
+          bot = top + rectHeight
+        }
+        left = data.x - rectWidth / 2
+        if (left < drawnRect.left + 2f) {
+          left = drawnRect.left + 2f
+        }
+        right = left + rectWidth
+        if (right > drawnRect.right - 2f) {
+          right = drawnRect.right - 2f
+          left = right - rectWidth
+        }
+
+        hintRectPath.moveTo(left, top)
+        if (!isTop) {
+          hintRectPath.lineTo(data.x - hintRectTopDataSpace / 2, top)
+          hintRectPath.lineTo(data.x, data.y)
+          hintRectPath.lineTo(data.x + hintRectTopDataSpace / 2, top)
+        }
+        hintRectPath.lineTo(right, top)
+        hintRectPath.lineTo(right, bot)
+        if (isTop) {
+          hintRectPath.lineTo(data.x + hintRectTopDataSpace / 2, bot)
+          hintRectPath.lineTo(data.x, data.y)
+          hintRectPath.lineTo(data.x - hintRectTopDataSpace / 2, bot)
+        }
+
+        hintRectPath.lineTo(left, bot)
+      } else {
+        var isRight = true
+        top = data.y - rectHeight / 2
+        if (top < drawnRect.top + 2f) {
+          top = drawnRect.top + 2f
+        }
+        bot = top + rectHeight
+        if (bot > drawnRect.bottom - 2f) {
+          bot = drawnRect.bottom - 2f
+          top = bot - rectHeight
+        }
+
+        right = data.x + hintRectTopDataSpace + rectWidth
+        // 检查右边是否越界
+        if (right > drawnRect.right - 2f) {
+          right = data.x - hintRectTopDataSpace
+          isRight = false
+        }
+        left = right - rectWidth
+
+        hintRectPath.moveTo(left, top)
+        hintRectPath.lineTo(right, top)
+        if (!isRight) {
+          hintRectPath.lineTo(right, data.y - hintRectTopDataSpace / 2)
+          hintRectPath.lineTo(data.x, data.y)
+          hintRectPath.lineTo(right, data.y + hintRectTopDataSpace / 2)
+        }
+        hintRectPath.lineTo(right, bot)
+        hintRectPath.lineTo(left, bot)
+        if (isRight) {
+          hintRectPath.lineTo(left, data.y + hintRectTopDataSpace / 2)
+          hintRectPath.lineTo(data.x, data.y)
+          hintRectPath.lineTo(left, data.y - hintRectTopDataSpace / 2)
+        }
+      }
+      hintRectPath.lineTo(left, top)
+      hintRectPath.close()
+      cvs.drawPath(hintRectPath, hintPaint)
 
       // 绘制提示语
       cvs.save()
       cvs.translate(left + hintRectPadding, top + hintRectPadding)
       staLayout.draw(cvs)
       cvs.restore()
-
-      // 绘制提示点.
-      hintPaint.color = hintPointColor
-      cvs.drawCircle(data.x, data.y, hintPointRadius, hintPaint)
     }
   }
 
@@ -689,11 +787,27 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
    * @param cvs Canvas
    */
   private fun drawMark(cvs: Canvas) {
-    markIcon?.let {
-      drawnData.filter { d -> d.data.mark.isNotEmpty() }.forEach { data ->
-        data.markRect.set(data.x - it.width / 2, data.y - it.height, data.x + it.width / 2, data.y)
-        cvs.drawBitmap(it, null, data.markRect, hintPaint)
-      }
+    markerIcon?.let {
+      var markNumber = 0
+      hintTextPaint.textSize = markNumTextSize
+      hintTextPaint.color = markNumTextColor
+      hintTextPaint.textAlign = Paint.Align.CENTER
+      val offsetY = hintTextPaint.textOffsetY(Gravity.CENTER)
+      drawnData.filter { d -> d.data.mark.isNotEmpty() }
+          .forEach { data ->
+            if (data.x - drawnRect.left >= -.1f && drawnRect.right - data.x >= -.1f) {
+              markNumber++
+
+              // 绘制图标
+              data.markRect.set(data.x - it.width / 2, data.y - it.height, data.x + it.width / 2, data.y)
+              cvs.drawBitmap(it, null, data.markRect, hintPaint)
+
+              // 绘制序号
+              cvs.drawText(markNumber.toString(), data.x, data.y - it.height / 2 + offsetY, hintTextPaint)
+            } else {
+              data.markRect.set(0f, 0f, 0f, 0f)
+            }
+          }
     } ?: return
   }
 
@@ -825,13 +939,13 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
     curveView.refresh()
   }
 
-    /**
-     * 关闭提示.
-     */
-    fun closeHint(){
-        isShownHintRect = false
-        curveView.refresh()
-    }
+  /**
+   * 关闭提示.
+   */
+  fun closeHint() {
+    isShownHintRect = false
+    curveView.refresh()
+  }
 
   /**
    * 重置.

@@ -12,10 +12,10 @@ import com.tlz.curveview.Xaxis
  */
 class DefXaxis internal constructor() : Xaxis() {
 
-    override fun getMeasureHeight(): Int = 0
+  override fun getMeasureHeight(): Int = 0
 
-    override fun onDraw(cvs: Canvas, left: Int, top: Int, right: Int, bottom: Int) {
+  override fun onDraw(cvs: Canvas, left: Int, top: Int, right: Int, bottom: Int) {
 
-    }
+  }
 
 }
