@@ -738,12 +738,12 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
       } else {
         var isRight = true
         top = data.y - rectHeight / 2
-        if (top < drawnRect.top + 2f) {
-          top = drawnRect.top + 2f
+        if (top < drawnRect.top) {
+          top = data.y - hintRectTopDataSpace
         }
         bot = top + rectHeight
-        if (bot > drawnRect.bottom - 2f) {
-          bot = drawnRect.bottom - 2f
+        if (bot > drawnRect.bottom) {
+          bot = data.y + hintRectTopDataSpace
           top = bot - rectHeight
         }
 
