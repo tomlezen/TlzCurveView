@@ -291,7 +291,7 @@ class DefCurveRender<T : DefData> internal constructor(dataset: DefDataset<T>, b
         return true
       }
 
-      override fun onSingleTapUp(e: MotionEvent?): Boolean {
+      override fun onDown(e: MotionEvent?): Boolean {
         e?.let { this@DefCurveRender.onSingleTapUp(it) }
         return false
       }
