@@ -1,6 +1,9 @@
 # 一个简单的曲线图
-
+<img src="https://github.com/tomlezen/TlzCurveView/blob/master/screenshot/s59wf-8g02n.gif?raw=true" alt="arc" style="max-width:100%;">
 ### 使用
+```
+implementation 'com.github.tomlezen:TlzCurveView:0.0.5'
+```
 
 1. 默认样式
 
@@ -119,3 +122,5 @@ TlzCurveView.setupByDef<T> {
   }
  }
 ```
+
+具体可以参考demo
